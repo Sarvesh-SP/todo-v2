@@ -1,98 +1,112 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Text, FlatList } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTodos } from '@/hooks/useTodos';
+import { useAuth } from '@/hooks/useAuth';
+import { TodoCard } from '@/components/TodoCard';
+import { Fab } from '@/components/FAB';
+import { FilterTabs } from '@/components/FilterTabs';
+import { SummaryCard } from '@/components/SummaryCard';
+import { AddTodoModal } from '@/components/AddTodoModal';
+import { FilterType } from '@/types';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+function getGreeting(name: string) {
+  const hour = new Date().getHours();
+  let time = 'evening';
+  if (hour < 12) time = 'morning';
+  else if (hour < 18) time = 'afternoon';
+  return `Good ${time}, ${name} 👋`;
+}
 
-export default function HomeScreen() {
+const EMPTY_MESSAGES: Record<FilterType, { emoji: string; title: string; sub: string }> = {
+  all: { emoji: '📝', title: 'No todos yet', sub: 'Tap + to add your first task' },
+  active: { emoji: '✅', title: 'All caught up!', sub: 'No active tasks remaining' },
+  completed: { emoji: '🎯', title: 'Nothing done yet', sub: 'Complete a task to see it here' },
+};
+
+function EmptyState({ filter }: Readonly<{ filter: FilterType }>) {
+  const { emoji, title, sub } = EMPTY_MESSAGES[filter];
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View className="flex-1 items-center justify-center py-24">
+      <Text style={{ fontSize: 56 }}>{emoji}</Text>
+      <Text className="mt-4 text-lg font-semibold text-foreground">{title}</Text>
+      <Text className="mt-1 text-sm text-muted-foreground">{sub}</Text>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+function TodoSeparator() {
+  return <View className="h-3" />;
+}
+
+export default function TodosScreen() {
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const { todos, addTodo, toggleTodo, deleteTodo, completedCount, pendingCount } = useTodos();
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (filter === 'active') return todos.filter((t) => !t.completed);
+    if (filter === 'completed') return todos.filter((t) => t.completed);
+    return todos;
+  }, [todos, filter]);
+
+  return (
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View className="px-5 pb-4 pt-4">
+        <Text className="text-2xl font-bold text-foreground" numberOfLines={1}>
+          {getGreeting(user?.name ?? 'there')}
+        </Text>
+        <Text className="mt-0.5 text-sm text-muted-foreground">
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </Text>
+      </View>
+
+      <View className="px-5 pb-4">
+        <SummaryCard
+          total={todos.length}
+          completed={completedCount}
+          pending={pendingCount}
+        />
+      </View>
+
+      <View className="px-5 pb-4">
+        <FilterTabs active={filter} onChange={setFilter} />
+      </View>
+
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        className="flex-1"
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingBottom: 100,
+          flexGrow: 1,
+        }}
+        ItemSeparatorComponent={TodoSeparator}
+        ListEmptyComponent={<EmptyState filter={filter} />}
+        renderItem={({ item }) => (
+          <TodoCard
+            todo={item}
+            onToggle={toggleTodo}
+            onDelete={deleteTodo}
+          />
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+
+      <Fab onPress={() => setModalVisible(true)} />
+
+      <AddTodoModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onAdd={addTodo}
+      />
+    </View>
+  );
+}
